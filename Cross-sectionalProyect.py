@@ -16,7 +16,7 @@ direct and questions, feedback, or corrections to feedback@quantopian.com
 import quantopian.algorithm as algo
 import quantopian.optimize as opt
 from quantopian.pipeline import Pipeline
-from quantopian.pipeline.factors import SimpleMovingAverage
+from quantopian.pipeline.factors import SimpleMovingAverage, AverageDollarVolume
 
 from quantopian.pipeline.filters import QTradableStocksUS
 from quantopian.pipeline.experimental import risk_loading_pipeline
@@ -95,6 +95,18 @@ def make_pipeline():
         inputs=[stocktwits.bull_minus_bear],
         window_length=3,
     )
+    
+    sentiment_week = SimpleMovingAverage(
+        inputs=[stocktwits.bull_minus_bear],
+        window_length=7,
+    )
+    
+    sentiment_2weeks = SimpleMovingAverage(
+        inputs=[stocktwits.bull_minus_bear],
+        window_length=15,
+    )
+    
+    dollar_volume = AverageDollarVolume(window_length=15)
 
     universe = QTradableStocksUS()
     
@@ -104,12 +116,17 @@ def make_pipeline():
     value_winsorized = value.winsorize(min_percentile=0.05, max_percentile=0.95)
     quality_winsorized = quality.winsorize(min_percentile=0.05, max_percentile=0.95)
     sentiment_score_winsorized = sentiment_score.winsorize(min_percentile=0.05,                                                                             max_percentile=0.95)
+    sentiment_week_winsorized = sentiment_week.winsorize(min_percentile=0.05,                                                                             max_percentile=0.95)
+    sentiment_2weeks_winsorized = sentiment_2weeks.winsorize(min_percentile=0.05,                                                                             max_percentile=0.95)
+    dollar_volume_winsorized = dollar_volume.winsorize(min_percentile=0.05,                                                                             max_percentile=0.95)
 
     # Here we combine our winsorized factors, z-scoring them to equalize their influence
     combined_factor = (
         value_winsorized.zscore() + 
         quality_winsorized.zscore() + 
-        sentiment_score_winsorized.zscore()
+        dollar_volume_winsorized.zscore() +
+        sentiment_score_winsorized.zscore()/sentiment_2weeks_winsorized.zscore() +
+        sentiment_week_winsorized.zscore()/sentiment_2weeks_winsorized.zscore()
     )
 
     # Build Filters representing the top and bottom baskets of stocks by our
